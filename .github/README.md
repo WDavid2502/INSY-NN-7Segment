@@ -7,10 +7,11 @@ für die Ziffern 0–7. Eine interaktive Webseite zeigt live, wie das Netz rechn
 
 ## 📄 Dokumentation
 
-- **[Information/DOKUMENTATION.html](../Information/DOKUMENTATION.html)** – fertige Dokumentation
-  (herunterladen → im Browser öffnen; GitHub zeigt HTML nur als Quelltext)
-- [Information/DOKUMENTATION.qmd](../Information/DOKUMENTATION.qmd) – Quarto-Quelle (inkl. Gedankengänge & Entscheidungen)
-- [Information/token.md](../Information/token.md) – geschätzter KI-Verbrauch pro Aufgabe
+- **[➜ Dokumentation lesen](../Information/DOKUMENTATION.md)** – direkt hier auf GitHub
+- [DOKUMENTATION.html](../Information/DOKUMENTATION.html) – dieselbe Doku als Webseite
+  (wird von GitHub nicht angezeigt → Download-Symbol „Download raw file“ → im Browser öffnen)
+- [DOKUMENTATION.qmd](../Information/DOKUMENTATION.qmd) – Quarto-Quelle, aus der beide Versionen erzeugt werden
+- [token.md](../Information/token.md) – geschätzter KI-Verbrauch pro Aufgabe
 
 ## Ordner
 

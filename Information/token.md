@@ -25,5 +25,6 @@
 
 | 2026-10-13 | token.md in Quarto-Doku einbinden, GitHub-Repo anlegen (privat) | ~8.000 | Repo-Setup, README |
 | 2026-10-13 | README-Links korrigiert | ~2.000 | Fehlersuche |
+| 2026-10-13 | Doku zusätzlich als GitHub-Markdown (gfm) rendern | ~4.000 | Quarto-Ausgabe prüfen |
 
-**Summe bisher (geschätzt): ~221.000 Tokens** – 29.09.: ~107.000 · 13.10.: ~114.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
+**Summe bisher (geschätzt): ~225.000 Tokens** – 29.09.: ~107.000 · 13.10.: ~118.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
