@@ -30,7 +30,7 @@
 Die Trainingsskripte wechseln selbst in `Code/` – sie können von überall gestartet werden (z. B. `python3 Code/train_7seg.py`).
 
 ## Git / Abgabe
-- Privates GitHub-Repo: https://github.com/WDavid2502/INSY-NN-7Segment (Branch `main`), Lehrer wird als Collaborator eingeladen.
+- Öffentliches GitHub-Repo (seit 2026-10-13): https://github.com/WDavid2502/INSY-NN-7Segment (Branch `main`). Lesbare Doku: `Information/DOKUMENTATION.md` (gfm-Ausgabe von Quarto).
 - README liegt in `.github/README.md` (Hauptordner bleibt leer). `token.md` im Hauptordner ist eine alte Kopie → per `.gitignore` ausgeschlossen.
 - Nach Doku-Änderungen: erst `quarto render`, dann committen + pushen.
 

@@ -419,7 +419,9 @@ Erzeugt diese Dokumentation als HTML.
 (privat) \| ~8.000 \| Repo-Setup, README \|\
 2026-10-13 \| README-Links korrigiert \| ~2.000 \| Fehlersuche \|\
 2026-10-13 \| Doku zusätzlich als GitHub-Markdown (gfm) rendern \|
-~4.000 \| Quarto-Ausgabe prüfen \|
+~4.000 \| Quarto-Ausgabe prüfen \|\
+2026-10-13 \| Repo öffentlich machen, Link für Lehrer \| ~2.000 \|
+GitHub-Befehle \|
 
-**Summe bisher (geschätzt): ~225.000 Tokens** – 29.09.: ~107.000 ·
-13.10.: ~118.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
+**Summe bisher (geschätzt): ~227.000 Tokens** – 29.09.: ~107.000 ·
+13.10.: ~120.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
