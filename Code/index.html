@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NN 7-Segment-Decoder</title>
+<style>
+  /* Blueprint-Farben: Cyan = Eingabe/verstärkt, Koralle = bremst, Gelb = Segment leuchtet */
+  :root {
+    --paper: #0e3a66; --paper-dark: #0a2d52; --panel: rgba(8, 36, 66, .72);
+    --grid-minor: rgba(255, 255, 255, .05); --grid-major: rgba(255, 255, 255, .11);
+    --ink: #e8f1fb; --ink-dim: #9fbbd8; --line: rgba(232, 241, 251, .5);
+    --pos: #7fd4ff; --neg: #ff8a6b; --lit: #ffd166; --ok: #7be0a6; --bad: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 16px 40px; color: var(--ink); font-family: system-ui, -apple-system, sans-serif;
+         background-color: var(--paper);
+         /* Millimeterpapier: feines 20px-Raster + grobes 100px-Raster */
+         background-image:
+           linear-gradient(var(--grid-major) 1px, transparent 1px),
+           linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+           linear-gradient(var(--grid-minor) 1px, transparent 1px),
+           linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+         background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px; }
+  main { max-width: 1240px; margin: 0 auto; }
+
+  /* --- Kopf mit Schriftfeld wie auf einer technischen Zeichnung --- */
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; align-items: flex-end; margin-bottom: 34px; }
+  h1 { font: 700 1.5rem var(--mono); letter-spacing: .04em; margin: 0 0 6px; text-transform: uppercase; }
+  .sub { margin: 0; color: var(--ink-dim); max-width: 60ch; }
+  .titleblock { border-collapse: collapse; font: .75rem var(--mono); border: 1.5px solid var(--line); background: var(--panel); }
+  .titleblock th, .titleblock td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; }
+  .titleblock th { color: var(--ink-dim); font-weight: 400; text-transform: uppercase; letter-spacing: .1em; }
+
+  /* --- Layout: 2 Spalten, unter 1000px untereinander --- */
+  .layout { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 34px 24px; align-items: start; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  /* --- Rahmen "FIG. n" mit Eckmarken --- */
+  .fig { position: relative; border: 1.5px solid var(--line); background: var(--panel); padding: 30px 20px 20px; }
+  .fig::before, .fig::after { content: ""; position: absolute; width: 12px; height: 12px; border: 0 solid var(--ink); }
+  .fig::before { top: -7px; right: -7px; border-width: 2px 2px 0 0; }
+  .fig::after { bottom: -7px; left: -7px; border-width: 0 0 2px 2px; }
+  .fig-label { position: absolute; top: -11px; left: 16px; padding: 0 8px; background: var(--paper);
+               font: 600 .78rem var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .note { color: var(--ink-dim); font-size: .88rem; margin: 0 0 12px; line-height: 1.45; }
+  .mono { font-family: var(--mono); }
+
+  /* --- Buttons --- */
+  .btn { font: 600 .8rem var(--mono); letter-spacing: .06em; color: var(--ink); background: transparent;
+         border: 1.5px solid var(--line); padding: 7px 12px; cursor: pointer; }
+  .btn:hover { border-color: var(--ink); background: rgba(255, 255, 255, .06); }
+  .btn.primary { border-color: var(--pos); color: var(--pos); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* --- FIG. 1 Decoder --- */
+  .decoder { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
+  @media (max-width: 520px) { .decoder { grid-template-columns: 1fr; } }
+  label { display: block; font: 600 .78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 8px; color: var(--ink-dim); }
+  input[type=text] { font: 600 2rem var(--mono); letter-spacing: .5em; width: 172px; text-align: center;
+                     padding: 6px 0 6px .5em; border: 1.5px solid var(--line); background: var(--paper-dark); color: var(--ink); }
+  input[type=text]:focus { outline: none; border-color: var(--pos); }
+  input.invalid { border-color: var(--bad); }
+  .bits { display: flex; gap: 8px; margin-top: 10px; }
+  .bit { width: 52px; height: 52px; border: 1.5px solid var(--line); background: transparent; color: var(--ink-dim);
+         font: 700 1.4rem var(--mono); cursor: pointer; transition: all .15s; }
+  .bit.on { border-color: var(--pos); color: var(--pos); background: rgba(127, 212, 255, .14); box-shadow: 0 0 14px rgba(127, 212, 255, .35); }
+  .hint { color: var(--ink-dim); font: .82rem var(--mono); margin-top: 12px; min-height: 1.2em; }
+  .result { font: 600 1.05rem var(--mono); margin-top: 8px; }
+  #display .seg { stroke: var(--ink-dim); stroke-width: 1; stroke-dasharray: 3 3; transition: fill .15s, filter .15s; }
+  #display text { fill: var(--ink-dim); font: 11px var(--mono); }
+  table.out { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 20px; font: .82rem var(--mono); }
+  table.out th, table.out td { padding: 8px 2px; text-align: center; border-bottom: 1px dashed var(--line); }
+  table.out th { color: var(--ink-dim); font-weight: 400; }
+  table.out tr > th:first-child { width: 68px; text-align: left; }
+  .bar { height: 6px; border: 1px solid var(--line); }
+  .bar > div { height: 100%; background: var(--lit); }
+
+  /* --- FIG. 2 Netz --- */
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; color: var(--ink-dim); font: .78rem var(--mono); margin-bottom: 4px; }
+  .legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+  #network { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #network .edge { transition: stroke-opacity .2s; pointer-events: none; }
+  #network .hit { stroke: transparent; stroke-width: 7; cursor: crosshair; }
+  #network circle { stroke: var(--line); stroke-width: 1.5; transition: fill .25s; cursor: crosshair; }
+  #network circle.hovered { stroke: var(--ink); stroke-width: 3; }
+  #network text { fill: var(--ink-dim); font: 12px var(--mono); }
+  #network text.head { font-size: 11px; letter-spacing: .12em; }
+  /* Fließende Striche = hier läuft im Schritt-Modus gerade das Signal durch */
+  #network .flow { stroke-dasharray: 6 5; animation: flow .7s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -11; } }
+  @media (prefers-reduced-motion: reduce) { #network .flow { animation: none; } }
+  .stepbox { margin-top: 12px; border: 1.5px dashed var(--line); padding: 12px 14px; }
+  .stepbox p { margin: 8px 0 0; line-height: 1.5; }
+  .dots { display: flex; gap: 6px; margin-left: auto; }
+  .dots span { width: 10px; height: 10px; border: 1.5px solid var(--line); }
+  .dots span.done { background: var(--pos); border-color: var(--pos); }
+
+  /* --- FIG. 3 Wahrheitstabelle --- */
+  table.truth { width: 100%; border-collapse: collapse; font: .82rem var(--mono); }
+  table.truth th, table.truth td { padding: 6px 4px; border-bottom: 1px dashed var(--line); text-align: center; }
+  table.truth th { color: var(--ink-dim); font-weight: 400; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+  table.truth tbody tr { cursor: pointer; }
+  table.truth tbody tr:hover { background: rgba(255, 255, 255, .05); }
+  table.truth tbody tr.current { background: rgba(127, 212, 255, .12); outline: 1.5px solid var(--pos); }
+  .mini polygon { stroke: var(--ink-dim); stroke-width: 4; stroke-opacity: .35; }
+  .conf { width: 100%; height: 6px; border: 1px solid var(--line); }
+  .conf > div { height: 100%; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+
+  /* --- FIG. 4 Training --- */
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+  .stat { border: 1px solid var(--line); padding: 8px 10px; }
+  .stat small { display: block; color: var(--ink-dim); font: .7rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .stat b { font: 600 1.05rem var(--mono); }
+  input[type=range] { width: 100%; accent-color: var(--lit); margin: 10px 0 4px; }
+  #lossChart { width: 100%; height: auto; display: block; cursor: crosshair; }
+  #lossChart text { fill: var(--ink-dim); font: 10px var(--mono); }
+  .banner { display: none; margin-bottom: 18px; border: 1.5px solid var(--lit); color: var(--lit); background: rgba(255, 209, 102, .08);
+            padding: 10px 14px; font: .85rem var(--mono); align-items: center; gap: 12px; flex-wrap: wrap; }
+  .banner.show { display: flex; }
+
+  /* --- Tooltip für Hover-Infos --- */
+  #tooltip { position: fixed; pointer-events: none; z-index: 10; display: none; max-width: 280px;
+             background: var(--paper-dark); border: 1.5px solid var(--ink); padding: 8px 10px; font: .78rem/1.45 var(--mono); }
+  #tooltip b { color: var(--lit); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>7-Segment-Decoder · Neuronales Netz</h1>
+      <p class="sub">3 Bits eingeben → das selbst trainierte Netz berechnet live, welche Segmente leuchten.
+        Fahr mit der Maus über Neuronen und Linien, um ins Netz hineinzuschauen.</p>
+    </div>
+    <table class="titleblock">
+      <tr><th>Projekt</th><td>NN from Scratch</td></tr>
+      <tr><th>Netz</th><td id="tb-net"></td></tr>
+      <tr><th>Training</th><td id="tb-train"></td></tr>
+      <tr><th>Fach</th><td>INSY · 5. Klasse</td></tr>
+    </table>
+  </header>
+
+  <!-- Hinweis, wenn gerade ein Zwischenstand aus dem Training angezeigt wird -->
+  <div class="banner" id="banner">
+    <span id="bannerText"></span>
+    <button class="btn" id="bannerBtn" type="button">Zum fertigen Netz</button>
+  </div>
+
+  <div class="layout">
+    <!-- FIG. 1: Decoder -->
+    <section class="fig">
+      <span class="fig-label">Fig. 1 — Decoder</span>
+      <div class="decoder">
+        <div>
+          <label for="bitInput">Eingabe (3 Bits)</label>
+          <input id="bitInput" type="text" maxlength="3" value="001" autocomplete="off">
+          <div class="bits" id="bitButtons"></div>
+          <div class="hint" id="hint"></div>
+          <div class="result" id="result"></div>
+        </div>
+        <!-- 7-Segment-Anzeige: a oben, b rechts oben, c rechts unten, d unten, e links unten, f links oben, g Mitte -->
+        <svg id="display" viewBox="0 0 140 240" width="140" height="240" aria-label="7-Segment-Anzeige"></svg>
+      </div>
+      <!-- Rohwerte der 7 Ausgangsneuronen -->
+      <table class="out">
+        <thead><tr><th>Segment</th><th>a</th><th>b</th><th>c</th><th>d</th><th>e</th><th>f</th><th>g</th></tr></thead>
+        <tbody>
+          <tr id="row-values"><th>Output</th></tr>
+          <tr id="row-bars"><th>Stärke</th></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- FIG. 2: Blick ins Netz -->
+    <section class="fig">
+      <span class="fig-label">Fig. 2 — Blick ins Netz</span>
+      <p class="note">Kreise = Neuronen (je voller, desto aktiver). Linien = Gewichte (Dicke = Stärke).
+        Deutlich sichtbar sind nur Linien, über die bei dieser Eingabe wirklich Signal fließt.</p>
+      <div class="legend">
+        <span style="--c: var(--pos)">verstärkt (positives Gewicht)</span>
+        <span style="--c: var(--neg)">bremst (negatives Gewicht)</span>
+      </div>
+      <svg id="network" viewBox="0 0 640 470" aria-label="Grafik des neuronalen Netzes"></svg>
+
+      <!-- Schritt-für-Schritt-Modus -->
+      <div class="stepbox">
+        <div class="btn-row">
+          <button class="btn primary" id="stepStart" type="button">▶ Schritt für Schritt</button>
+          <button class="btn" id="stepPrev" type="button">◀ Zurück</button>
+          <button class="btn" id="stepNext" type="button">Weiter ▶</button>
+          <button class="btn" id="stepEnd" type="button">Beenden</button>
+          <div class="dots" id="stepDots"></div>
+        </div>
+        <p id="stepText"></p>
+      </div>
+    </section>
+
+    <!-- FIG. 3: Wahrheitstabelle -->
+    <section class="fig">
+      <span class="fig-label">Fig. 3 — Wahrheitstabelle 0–7</span>
+      <p class="note">Alle 8 Eingaben auf einen Blick. Zeile anklicken = als Eingabe übernehmen.
+        <b>Sicherheit</b> = wie weit das unsicherste Segment von der 0.5-Grenze entfernt ist.</p>
+      <table class="truth">
+        <thead><tr><th>Bits</th><th>Soll</th><th>Netz</th><th>Ziffer</th><th style="width:30%">Sicherheit</th><th></th></tr></thead>
+        <tbody id="truthBody"></tbody>
+      </table>
+      <p class="note" id="truthSummary" style="margin:12px 0 0"></p>
+    </section>
+
+    <!-- FIG. 4: Training im Zeitraffer -->
+    <section class="fig" id="trainingFig">
+      <span class="fig-label">Fig. 4 — Training im Zeitraffer</span>
+      <p class="note">Vor dem Training sind die Gewichte zufällig – das Netz rät nur. In jeder Epoche werden die
+        Gewichte ein kleines Stück so verschoben, dass der Fehler sinkt. Schieb den Regler: Anzeige, Netz und
+        Tabelle zeigen dann den Stand von <i>diesem</i> Zeitpunkt.</p>
+      <div class="btn-row">
+        <button class="btn primary" id="playBtn" type="button">▶ Abspielen</button>
+        <span class="mono" id="epochLabel" style="font-size:.85rem"></span>
+      </div>
+      <input type="range" id="slider" min="0" value="0" aria-label="Trainingszeitpunkt">
+      <div class="stats">
+        <div class="stat"><small>Epoche</small><b id="statEpoch"></b></div>
+        <div class="stat"><small>Fehler (Loss)</small><b id="statLoss"></b></div>
+        <div class="stat"><small>Richtig</small><b id="statCorrect"></b></div>
+      </div>
+      <svg id="lossChart" viewBox="0 0 600 230" aria-label="Fehlerkurve über die Epochen"></svg>
+      <p class="note" style="margin:8px 0 0">Fehlerkurve: beide Achsen gestaucht (logarithmisch), damit der schnelle Anfang
+        und das langsame Feintuning am Ende gleich gut sichtbar sind. Klick in die Kurve springt zu diesem Zeitpunkt.</p>
+    </section>
+  </div>
+</main>
+<div id="tooltip"></div>
+
+<!-- Trainierte Gewichte (const NETWORK) und Trainingsverlauf (const HISTORY) aus train_7seg.py -->
+<script src="seven_segment_weights.js"></script>
+<script src="seven_segment_history.js"></script>
+<script>
+  const SEGMENTS = ["a", "b", "c", "d", "e", "f", "g"];
+  const SEG_POINTS = {
+    a: "30,10 110,10 100,22 40,22",
+    b: "114,14 114,114 102,106 102,26",
+    c: "114,126 114,226 102,214 102,134",
+    d: "30,230 110,230 100,218 40,218",
+    e: "26,126 26,226 38,214 38,134",
+    f: "26,14 26,114 38,106 38,26",
+    g: "30,120 40,112 100,112 110,120 100,128 40,128",
+  };
+
+  // Segmentmuster der Ziffern 0–7 (gleiche Tabelle wie im Training)
+  const DIGIT_PATTERNS = [
+    "1111110", "0110000", "1101101", "1111001",
+    "0110011", "1011011", "1011111", "1110000",
+  ];
+  const SAMPLES = DIGIT_PATTERNS.map((p, d) => ({
+    bits: d.toString(2).padStart(3, "0"),
+    target: p.split("").map(Number),
+  }));
+
+  // Ohne seven_segment_history.js gibt es nur das fertige Netz (Zeitraffer wird ausgeblendet)
+  const HAS_HISTORY = typeof HISTORY !== "undefined";
+  const SNAPSHOTS = HAS_HISTORY ? HISTORY.snapshots : [];
+  const FINAL = Math.max(SNAPSHOTS.length - 1, 0);
+
+  // Gesamter Zustand der Seite – jede Änderung ruft danach render() auf
+  const state = {
+    bits: "001",
+    snapshot: FINAL,   // welcher Trainingszeitpunkt (FINAL = fertiges Netz)
+    step: null,        // Schritt-Modus: null = aus, sonst 0–3
+    hover: null,       // worüber die Maus gerade im Netz ist
+  };
+
+  const fmt = n => n.toLocaleString("de-AT");
+
+  // Gewichte des gerade gewählten Zeitpunkts
+  function currentLayers() {
+    return !HAS_HISTORY || state.snapshot === FINAL ? NETWORK.layers : SNAPSHOTS[state.snapshot].layers;
+  }
+
+  // Gleiche Formel wie in nn.py: drückt jeden Wert zwischen 0 und 1
+  function sigmoid(z) {
+    return 1 / (1 + Math.exp(-z));
+  }
+
+  // Forward Pass: gibt ALLE Schichten zurück ([Input, Hidden, Output]), damit die Grafik die Zwischenwerte zeigen kann
+  function forwardAll(layers, inputs) {
+    const activations = [inputs];
+    let values = inputs;
+    for (const layer of layers) {
+      values = layer.map(neuron => {
+        let z = neuron.bias;
+        for (let i = 0; i < values.length; i++) z += values[i] * neuron.weights[i];
+        return sigmoid(z);
+      });
+      activations.push(values);
+    }
+    return activations;
+  }
+
+  // Ziffer zum Muster (Schwelle 0.5), -1 wenn keine Ziffer passt
+  function recognize(outputs) {
+    return DIGIT_PATTERNS.indexOf(outputs.map(v => (v > 0.5 ? "1" : "0")).join(""));
+  }
+
+  // Wie das Training: mittlerer Fehler über alle 8 Beispiele
+  function meanLoss(layers) {
+    let total = 0;
+    for (const s of SAMPLES) {
+      const out = forwardAll(layers, s.bits.split("").map(Number)).at(-1);
+      out.forEach((o, i) => { total += 0.5 * (o - s.target[i]) ** 2; });
+    }
+    return total / SAMPLES.length;
+  }
+
+  const litFill = v => `color-mix(in srgb, var(--lit) ${Math.round(v * 100)}%, transparent)`;
+
+  // Kleine 7-Segment-Grafik für die Wahrheitstabelle
+  function miniDisplay(values) {
+    return `<svg class="mini" viewBox="0 0 140 240" width="20" height="34">` +
+      SEGMENTS.map((s, i) => `<polygon points="${SEG_POINTS[s]}" style="fill:${litFill(values[i])}"/>`).join("") + `</svg>`;
+  }
+
+  // --- FIG. 1: Decoder aufbauen ----------------------------------------------
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(parent, tag, attrs) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    parent.appendChild(el);
+    return el;
+  }
+
+  const display = document.getElementById("display");
+  const segEls = SEGMENTS.map(s => svgEl(display, "polygon", { class: "seg", points: SEG_POINTS[s] }));
+  // Beschriftung der Segmente wie in einer Bemaßung
+  const SEG_LABELS = { a: [70, 40], b: [88, 70], c: [88, 180], d: [70, 208], e: [52, 180], f: [52, 70], g: [70, 150] };
+  SEGMENTS.forEach(s => {
+    svgEl(display, "text", { x: SEG_LABELS[s][0], y: SEG_LABELS[s][1], "text-anchor": "middle" }).textContent = s;
+  });
+
+  const valueCells = SEGMENTS.map(() => document.getElementById("row-values").appendChild(document.createElement("td")));
+  const barFills = SEGMENTS.map(() => {
+    const td = document.getElementById("row-bars").appendChild(document.createElement("td"));
+    td.innerHTML = `<div class="bar"><div></div></div>`;
+    return td.querySelector(".bar > div");
+  });
+
+  const input = document.getElementById("bitInput");
+  const buttons = [0, 1, 2].map(i => {
+    const btn = document.createElement("button");
+    btn.className = "bit";
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      const bits = state.bits.padEnd(3, "0").replace(/[^01]/g, "0").split("");
+      bits[i] = bits[i] === "1" ? "0" : "1";
+      setBits(bits.join(""));
+    });
+    document.getElementById("bitButtons").appendChild(btn);
+    return btn;
+  });
+
+  function setBits(bits) {
+    state.bits = bits;
+    input.value = bits;
+    render();
+  }
+  input.addEventListener("input", () => { state.bits = input.value.trim(); render(); });
+
+  function renderDecoder(acts) {
+    const valid = acts !== null;
+    input.classList.toggle("invalid", !valid && state.bits.length > 0);
+    buttons.forEach((btn, i) => {
+      btn.textContent = state.bits[i] === "1" ? "1" : "0";
+      btn.classList.toggle("on", state.bits[i] === "1");
+    });
+
+    // Im Schritt-Modus leuchtet die Anzeige erst im letzten Schritt
+    const show = valid && (state.step === null || state.step === 3);
+    const outputs = show ? acts.at(-1) : null;
+    SEGMENTS.forEach((s, i) => {
+      const v = outputs ? outputs[i] : 0;
+      segEls[i].style.fill = litFill(v);
+      segEls[i].style.filter = v > 0.5 ? `drop-shadow(0 0 ${Math.round(v * 8)}px rgba(255, 209, 102, .7))` : "none";
+      valueCells[i].textContent = outputs ? v.toFixed(2) : "–";
+      barFills[i].style.width = (v * 100) + "%";
+    });
+
+    const hint = document.getElementById("hint");
+    const result = document.getElementById("result");
+    if (!valid) {
+      hint.textContent = "Bitte genau 3 Zeichen aus 0 und 1 eingeben (z. B. 001).";
+      result.textContent = "";
+    } else {
+      hint.textContent = `Binär ${state.bits} = dezimal ${parseInt(state.bits, 2)}`;
+      if (!show) result.textContent = "Das Netz rechnet …";
+      else {
+        const digit = recognize(outputs);
+        result.innerHTML = digit >= 0 ? `Das Netz zeigt: <span style="color:var(--lit)">${digit}</span>`
+                                      : `<span class="bad">Keine gültige Ziffer</span>`;
+      }
+    }
+  }
+
+  // --- FIG. 2: Netz-Grafik ---------------------------------------------------
+  const netSvg = document.getElementById("network");
+  const COLUMN_X = [90, 320, 540];   // x-Position von Input-, Hidden- und Output-Schicht
+  const TOP = 44, BOTTOM = 460;
+  const LAYER_NAMES = ["Eingabe", "Versteckt", "Ausgabe"];
+
+  const positions = NETWORK.layer_sizes.map((count, l) =>
+    Array.from({ length: count }, (_, i) => ({ x: COLUMN_X[l], y: TOP + (BOTTOM - TOP) * (i + 0.5) / count }))
+  );
+
+  NETWORK.layer_sizes.forEach((count, l) => {
+    svgEl(netSvg, "text", { x: COLUMN_X[l], y: 16, "text-anchor": "middle", class: "head" }).textContent =
+      `${LAYER_NAMES[l].toUpperCase()} (${count})`;
+  });
+
+  // Linien zuerst zeichnen, damit die Kreise darüber liegen.
+  // edges[l][j][i] = Linie von Neuron i (Schicht l) zu Neuron j (Schicht l+1)
+  const edges = NETWORK.layers.map((layer, l) =>
+    layer.map((neuron, j) =>
+      neuron.weights.map((_, i) => svgEl(netSvg, "line", {
+        class: "edge",
+        x1: positions[l][i].x, y1: positions[l][i].y, x2: positions[l + 1][j].x, y2: positions[l + 1][j].y,
+      }))
+    )
+  );
+  // Unsichtbare, breitere Linien darüber, damit man die dünnen Linien leicht mit der Maus trifft
+  NETWORK.layers.forEach((layer, l) => layer.forEach((neuron, j) => neuron.weights.forEach((_, i) => {
+    const hit = svgEl(netSvg, "line", {
+      class: "hit", x1: positions[l][i].x, y1: positions[l][i].y, x2: positions[l + 1][j].x, y2: positions[l + 1][j].y,
+    });
+    attachHover(hit, { type: "edge", l, i, j });
+  })));
+
+  const radius = [15, 9, 12];
+  const nodes = positions.map((layer, l) => layer.map((p, i) => {
+    const c = svgEl(netSvg, "circle", { cx: p.x, cy: p.y, r: radius[l] });
+    attachHover(c, { type: "node", l, i });
+    return c;
+  }));
+
+  positions[0].forEach((p, i) => svgEl(netSvg, "text", { x: p.x - 26, y: p.y + 4, "text-anchor": "end" }).textContent = `Bit ${i + 1}`);
+  positions.at(-1).forEach((p, i) => svgEl(netSvg, "text", { x: p.x + 22, y: p.y + 4 }).textContent = SEGMENTS[i]);
+
+  // Gehört die Linie (l, i → j) zu dem, worüber die Maus gerade ist?
+  function touchesHover(l, i, j) {
+    const h = state.hover;
+    if (!h) return true;
+    if (h.type === "edge") return h.l === l && h.i === i && h.j === j;
+    return (h.l === l && h.i === i) || (h.l === l + 1 && h.i === j);
+  }
+
+  function drawNetwork(acts, layers) {
+    const stage = state.step ?? 3;   // bis zu welcher Schicht schon gerechnet wurde (3 = alles)
+    nodes.forEach((layer, l) => {
+      const color = l === nodes.length - 1 ? "var(--lit)" : "var(--pos)";
+      layer.forEach((circle, i) => {
+        const a = acts && l <= stage ? acts[l][i] : 0;
+        circle.style.fill = `color-mix(in srgb, ${color} ${Math.round(a * 100)}%, var(--paper-dark))`;
+        circle.classList.toggle("hovered", state.hover?.type === "node" && state.hover.l === l && state.hover.i === i);
+      });
+    });
+    edges.forEach((layer, l) => layer.forEach((row, j) => row.forEach((line, i) => {
+      const w = layers[l][j].weights[i];
+      line.style.stroke = w >= 0 ? "var(--pos)" : "var(--neg)";
+      line.style.strokeWidth = 0.5 + Math.min(Math.abs(w), 8) / 8 * 4;   // Dicke = Stärke des Gewichts
+      // Signal = Aktivität des Start-Neurons × Gewicht. Inaktives Neuron → Linie fast unsichtbar.
+      const reached = acts && l + 1 <= stage;
+      let opacity = reached ? 0.06 + 0.8 * Math.min(Math.abs(acts[l][i] * w) / 4, 1) : 0.04;
+      if (state.hover) opacity = touchesHover(l, i, j) ? Math.max(opacity, 0.5) : opacity * 0.12;
+      line.style.strokeOpacity = opacity;
+      line.classList.toggle("flow", state.step !== null && reached && l + 1 === stage);
+    })));
+  }
+
+  // --- Hover-Infos -----------------------------------------------------------
+  const tooltip = document.getElementById("tooltip");
+  let lastActs = null;
+
+  function neuronName(l, i) {
+    return l === 0 ? `Bit ${i + 1}` : l === 1 ? `Verstecktes Neuron ${i + 1}` : `Segment ${SEGMENTS[i]}`;
+  }
+
+  function tooltipText(h) {
+    const layers = currentLayers();
+    const a = lastActs && (state.step ?? 3) >= h.l ? lastActs : null;
+    if (h.type === "node") {
+      if (h.l === 0) {
+        const v = a ? a[0][h.i] : null;
+        return `<b>Bit ${h.i + 1}</b> (Eingabe)<br>Wert: ${v ?? "–"} → ${v === 1 ? "sendet Signal" : "bleibt still"}`;
+      }
+      const n = layers[h.l - 1][h.i];
+      const act = a ? a[h.l][h.i].toFixed(3) : "–";
+      const extra = h.l === 2 && a ? (a[2][h.i] > 0.5 ? " → leuchtet" : " → bleibt aus") : "";
+      return `<b>${neuronName(h.l, h.i)}</b><br>Aktivität: ${act}${extra}<br>` +
+             `Grundneigung (Bias): ${n.bias.toFixed(2)}<br>Eingehende Linien: ${n.weights.length}`;
+    }
+    const w = layers[h.l][h.j].weights[h.i];
+    const from = a ? a[h.l][h.i] : null;
+    const flow = from !== null && (state.step ?? 3) >= h.l + 1 ? (from * w).toFixed(2) : "–";
+    return `<b>${neuronName(h.l, h.i)} → ${neuronName(h.l + 1, h.j)}</b><br>` +
+           `Gewicht: ${w >= 0 ? "+" : ""}${w.toFixed(2)} (${w >= 0 ? "verstärkt" : "bremst"})<br>` +
+           `Fließt gerade weiter: ${flow}`;
+  }
+
+  function attachHover(el, target) {
+    el.addEventListener("mouseenter", () => { state.hover = target; render(); tooltip.innerHTML = tooltipText(target); tooltip.style.display = "block"; });
+    el.addEventListener("mousemove", e => {
+      tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - tooltip.offsetWidth - 8) + "px";
+      tooltip.style.top = (e.clientY + 14) + "px";
+    });
+    el.addEventListener("mouseleave", () => { state.hover = null; tooltip.style.display = "none"; render(); });
+  }
+
+  // --- Schritt-für-Schritt-Modus ---------------------------------------------
+  const STEP_TITLES = ["1 · Eingabe anlegen", "2 · Eingabe → versteckte Schicht", "3 · Versteckte Schicht → Ausgabe", "4 · Ergebnis ablesen"];
+  const stepDots = document.getElementById("stepDots");
+  STEP_TITLES.forEach(() => stepDots.appendChild(document.createElement("span")));
+
+  function stepExplanation(acts) {
+    if (state.step === null) {
+      return "Der Schritt-Modus zeigt, wie das Signal Schicht für Schicht durch das Netz läuft – so wie beim Forward Pass in nn.py.";
+    }
+    if (!acts) return "Bitte zuerst eine gültige Eingabe (3 Bits) eingeben.";
+    const b = state.bits;
+    const title = `<b class="mono">${STEP_TITLES[state.step]}</b><br>`;
+    if (state.step === 0) {
+      return title + `Die Eingabe ${b} wird angelegt: Bit 1 = ${b[0]}, Bit 2 = ${b[1]}, Bit 3 = ${b[2]}. ` +
+             `Ein Bit mit 1 sendet ein Signal, ein Bit mit 0 bleibt still – über seine Linien fließt nichts.`;
+    }
+    if (state.step === 1) {
+      const active = acts[1].filter(v => v > 0.5).length;
+      return title + `Jedes der 16 versteckten Neuronen sammelt die Signale der Bits ein. Jede Linie verstärkt (cyan) ` +
+             `oder bremst (rot), dazu kommt die eigene Grundneigung (Bias). Sigmoid drückt das Ergebnis zwischen 0 und 1. ` +
+             `Jetzt sind <b>${active} von 16</b> deutlich aktiv.`;
+    }
+    if (state.step === 2) {
+      const list = acts[2].map((v, i) => `${SEGMENTS[i]}=${v.toFixed(2)}`).join(", ");
+      return title + `Die 7 Ausgangsneuronen machen dasselbe mit den 16 Zwischenwerten. ` +
+             `Für jedes Segment entsteht eine Zahl zwischen 0 und 1: <span class="mono">${list}</span>.`;
+    }
+    const lit = SEGMENTS.filter((_, i) => acts[2][i] > 0.5);
+    const digit = recognize(acts[2]);
+    return title + `Alles über 0.5 leuchtet: Segmente <b>${lit.join(", ") || "keine"}</b>. ` +
+           (digit >= 0 ? `Dieses Muster ist die Ziffer <b style="color:var(--lit)">${digit}</b>.`
+                       : `Dieses Muster passt zu keiner Ziffer – das Netz ist an diesem Zeitpunkt noch nicht fertig trainiert.`);
+  }
+
+  function renderSteps(acts) {
+    const on = state.step !== null;
+    document.getElementById("stepStart").style.display = on ? "none" : "";
+    ["stepPrev", "stepNext", "stepEnd"].forEach(id => { document.getElementById(id).style.display = on ? "" : "none"; });
+    document.getElementById("stepPrev").disabled = !on || state.step === 0;
+    document.getElementById("stepNext").disabled = !on || state.step === 3;
+    stepDots.style.display = on ? "" : "none";
+    [...stepDots.children].forEach((d, i) => d.classList.toggle("done", on && i <= state.step));
+    document.getElementById("stepText").innerHTML = stepExplanation(acts);
+  }
+
+  document.getElementById("stepStart").addEventListener("click", () => { state.step = 0; render(); });
+  document.getElementById("stepPrev").addEventListener("click", () => { state.step = Math.max(0, state.step - 1); render(); });
+  document.getElementById("stepNext").addEventListener("click", () => { state.step = Math.min(3, state.step + 1); render(); });
+  document.getElementById("stepEnd").addEventListener("click", () => { state.step = null; render(); });
+
+  // --- FIG. 3: Wahrheitstabelle ----------------------------------------------
+  const truthBody = document.getElementById("truthBody");
+  truthBody.addEventListener("click", e => {
+    const row = e.target.closest("tr[data-bits]");
+    if (row) setBits(row.dataset.bits);
+  });
+
+  function renderTruthTable(layers) {
+    let correct = 0;
+    truthBody.innerHTML = SAMPLES.map((s, d) => {
+      const out = forwardAll(layers, s.bits.split("").map(Number)).at(-1);
+      const digit = recognize(out);
+      const ok = out.every((v, i) => (v > 0.5 ? 1 : 0) === s.target[i]);
+      correct += ok;
+      // Sicherheit: Abstand des unsichersten Segments zur 0.5-Grenze (0 = geraten, 1 = ganz sicher)
+      const conf = Math.min(...out.map(v => Math.abs(v - 0.5) * 2));
+      const color = ok ? "var(--ok)" : "var(--bad)";
+      return `<tr data-bits="${s.bits}" class="${s.bits === state.bits ? "current" : ""}">
+        <td>${s.bits}</td><td>${miniDisplay(s.target)}</td><td>${miniDisplay(out)}</td>
+        <td>${digit >= 0 ? digit : "?"}</td>
+        <td><div class="conf"><div style="width:${(conf * 100).toFixed(0)}%;background:${color}"></div></div></td>
+        <td class="${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"}</td></tr>`;
+    }).join("");
+    document.getElementById("truthSummary").innerHTML =
+      `<b class="${correct === 8 ? "ok" : "bad"}">${correct} von 8</b> Ziffern richtig erkannt.`;
+    return correct;
+  }
+
+  // --- FIG. 4: Training im Zeitraffer ----------------------------------------
+  const slider = document.getElementById("slider");
+  const chart = document.getElementById("lossChart");
+  const CH = { w: 600, h: 230, l: 54, r: 14, t: 12, b: 34 };
+  const maxEpoch = HAS_HISTORY ? SNAPSHOTS.at(-1).epoch : 1;
+  const plotW = CH.w - CH.l - CH.r, plotH = CH.h - CH.t - CH.b;
+  // Logarithmische Achsen: Epoche 1 … max (links → rechts), Fehler 1 … 0.0001 (oben → unten)
+  const xOf = epoch => CH.l + Math.log10(Math.max(epoch, 1)) / Math.log10(maxEpoch) * plotW;
+  const yOf = loss => CH.t + Math.min(Math.max(-Math.log10(loss), 0), 4) / 4 * plotH;
+  let marker = null;
+
+  function buildChart() {
+    [1, 10, 100, 1000, 10000].filter(e => e <= maxEpoch).forEach(e => {
+      svgEl(chart, "line", { x1: xOf(e), x2: xOf(e), y1: CH.t, y2: CH.t + plotH, stroke: "var(--grid-major)" });
+      svgEl(chart, "text", { x: xOf(e), y: CH.h - 16, "text-anchor": "middle" }).textContent = fmt(e);
+    });
+    [1, 0.1, 0.01, 0.001, 0.0001].forEach(v => {
+      svgEl(chart, "line", { x1: CH.l, x2: CH.l + plotW, y1: yOf(v), y2: yOf(v), stroke: "var(--grid-major)" });
+      svgEl(chart, "text", { x: CH.l - 6, y: yOf(v) + 3, "text-anchor": "end" }).textContent = String(v);
+    });
+    svgEl(chart, "rect", { x: CH.l, y: CH.t, width: plotW, height: plotH, fill: "none", stroke: "var(--line)" });
+    svgEl(chart, "text", { x: CH.l + plotW, y: CH.h - 2, "text-anchor": "end" }).textContent = "Epoche →";
+    svgEl(chart, "text", { x: 4, y: CH.t + 8 }).textContent = "Fehler";
+
+    // Kurve aus Fehlerverlauf + Schnappschüssen (die sind am Anfang dichter)
+    const points = new Map(HISTORY.loss_curve.map(([e, l]) => [e, l]));
+    SNAPSHOTS.forEach(s => { if (s.epoch > 0) points.set(s.epoch, s.loss); });
+    const d = [...points.entries()].sort((a, b) => a[0] - b[0])
+      .map(([e, l], k) => `${k ? "L" : "M"}${xOf(e).toFixed(1)},${yOf(l).toFixed(1)}`).join(" ");
+    svgEl(chart, "path", { d, fill: "none", stroke: "var(--pos)", "stroke-width": 2 });
+
+    const markerLine = svgEl(chart, "line", { y1: CH.t, y2: CH.t + plotH, stroke: "var(--lit)", "stroke-dasharray": "4 3" });
+    const markerDot = svgEl(chart, "circle", { r: 5, fill: "var(--lit)" });
+    marker = { line: markerLine, dot: markerDot };
+
+    // Klick in die Kurve → nächstgelegenen Schnappschuss wählen
+    chart.addEventListener("click", e => {
+      const rect = chart.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width * CH.w;
+      const epoch = 10 ** ((x - CH.l) / plotW * Math.log10(maxEpoch));
+      let best = 0;
+      SNAPSHOTS.forEach((s, k) => {
+        const dist = Math.abs(Math.log10(Math.max(s.epoch, 0.5)) - Math.log10(epoch));
+        if (dist < Math.abs(Math.log10(Math.max(SNAPSHOTS[best].epoch, 0.5)) - Math.log10(epoch))) best = k;
+      });
+      stopPlaying();
+      state.snapshot = best;
+      render();
+    });
+  }
+
+  function renderTraining(layers, correct) {
+    if (!HAS_HISTORY) return;
+    const snap = SNAPSHOTS[state.snapshot];
+    const loss = meanLoss(layers);
+    slider.value = state.snapshot;
+    document.getElementById("statEpoch").textContent = snap.epoch === 0 ? "0 (Zufall)" : fmt(snap.epoch);
+    document.getElementById("statLoss").textContent = loss.toFixed(4);
+    document.getElementById("statCorrect").innerHTML = `<span class="${correct === 8 ? "ok" : "bad"}">${correct} / 8</span>`;
+    document.getElementById("epochLabel").textContent =
+      `Schnappschuss ${state.snapshot + 1} von ${SNAPSHOTS.length}`;
+    marker.line.setAttribute("x1", xOf(snap.epoch));
+    marker.line.setAttribute("x2", xOf(snap.epoch));
+    marker.dot.setAttribute("cx", xOf(snap.epoch));
+    marker.dot.setAttribute("cy", yOf(loss));
+
+    const banner = document.getElementById("banner");
+    banner.classList.toggle("show", state.snapshot !== FINAL);
+    document.getElementById("bannerText").textContent = snap.epoch === 0
+      ? "⚠ Du siehst das Netz VOR dem Training – die Gewichte sind noch zufällig."
+      : `⚠ Du siehst das Netz nach Epoche ${fmt(snap.epoch)} von ${fmt(maxEpoch)} – noch nicht fertig trainiert.`;
+  }
+
+  let playTimer = null;
+  const playBtn = document.getElementById("playBtn");
+  function stopPlaying() {
+    clearInterval(playTimer);
+    playTimer = null;
+    playBtn.textContent = "▶ Abspielen";
+  }
+  playBtn.addEventListener("click", () => {
+    if (playTimer) return stopPlaying();
+    if (state.snapshot === FINAL) state.snapshot = 0;   // am Ende → von vorne beginnen
+    playBtn.textContent = "❚❚ Pause";
+    playTimer = setInterval(() => {
+      state.snapshot++;
+      if (state.snapshot >= FINAL) { state.snapshot = FINAL; stopPlaying(); }
+      render();
+    }, 160);
+    render();
+  });
+  slider.addEventListener("input", () => { stopPlaying(); state.snapshot = Number(slider.value); render(); });
+  document.getElementById("bannerBtn").addEventListener("click", () => { stopPlaying(); state.snapshot = FINAL; render(); });
+
+  if (HAS_HISTORY) {
+    slider.max = FINAL;
+    buildChart();
+  } else {
+    document.getElementById("trainingFig").style.display = "none";
+  }
+
+  // Schriftfeld im Kopf
+  document.getElementById("tb-net").textContent = `${NETWORK.layer_sizes.join("-")} · ${NETWORK.activation}`;
+  document.getElementById("tb-train").textContent = HAS_HISTORY ? `SGD · ${fmt(maxEpoch)} Epochen` : "SGD";
+
+  // --- Alles neu zeichnen ----------------------------------------------------
+  function render() {
+    const layers = currentLayers();
+    const valid = /^[01]{3}$/.test(state.bits);
+    const acts = valid ? forwardAll(layers, state.bits.split("").map(Number)) : null;
+    lastActs = acts;
+    renderDecoder(acts);
+    drawNetwork(acts, layers);
+    renderSteps(acts);
+    const correct = renderTruthTable(layers);
+    renderTraining(layers, correct);
+    if (state.hover) tooltip.innerHTML = tooltipText(state.hover);
+  }
+
+  render();
+</script>
+</body>
+</html>

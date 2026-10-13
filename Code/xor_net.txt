@@ -1,0 +1,11 @@
+# Neural Network Export
+activation sigmoid
+inputs 2
+layers 2
+
+layer 1 neurons 2
+  neuron 1 bias -3.5631801803 weights 6.2426854572 -6.1972646374
+  neuron 2 bias -2.8051113076 weights -5.3356651197 5.0471432942
+
+layer 2 neurons 1
+  neuron 1 bias -4.0510228313 weights 8.0941319921 8.3256993275
