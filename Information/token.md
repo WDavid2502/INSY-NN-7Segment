@@ -24,5 +24,6 @@
 | 2026-10-13 | Doku in Quarto inkl. Gedankengänge/Design-Begründung, rendern | ~15.000 | DOKUMENTATION.qmd schreiben (größter Posten) |
 
 | 2026-10-13 | token.md in Quarto-Doku einbinden, GitHub-Repo anlegen (privat) | ~8.000 | Repo-Setup, README |
+| 2026-10-13 | README-Links korrigiert | ~2.000 | Fehlersuche |
 
-**Summe bisher (geschätzt): ~219.000 Tokens** – 29.09.: ~107.000 · 13.10.: ~112.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
+**Summe bisher (geschätzt): ~221.000 Tokens** – 29.09.: ~107.000 · 13.10.: ~114.000. Größte Einzelaufgabe: Blueprint-Redesign (~45.000).
