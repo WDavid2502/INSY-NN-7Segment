@@ -29,6 +29,11 @@
 
 Die Trainingsskripte wechseln selbst in `Code/` – sie können von überall gestartet werden (z. B. `python3 Code/train_7seg.py`).
 
+## Git / Abgabe
+- Privates GitHub-Repo: https://github.com/WDavid2502/INSY-NN-7Segment (Branch `main`), Lehrer wird als Collaborator eingeladen.
+- README liegt in `.github/README.md` (Hauptordner bleibt leer). `token.md` im Hauptordner ist eine alte Kopie → per `.gitignore` ausgeschlossen.
+- Nach Doku-Änderungen: erst `quarto render`, dann committen + pushen.
+
 ## Regeln
 1. **Der User muss immer verstehen, was passiert – aber nur ungefähr.** Während der Arbeit laufend erklären, *was* gerade
    gemacht wird und *grob wie es funktioniert* (auch wie das neuronale Netz dabei arbeitet) – vor jedem Ausführen, nicht erst am Ende.
